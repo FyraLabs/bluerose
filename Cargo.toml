@@ -10,5 +10,10 @@ command-fds = { version = "0.3.2", features = ["tokio"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 tokio = { version = "1.49.0", features = ["full"] }
+tokio-stream = "0.1.17"
 typify = "0.6.1"
-zbus = { version = "5.13.2", default-features = false, features = ["tokio", "chrono", "option-as-array"] }
+zbus = { version = "5.13.2", default-features = false, features = [
+    "tokio",
+    "chrono",
+    "option-as-array",
+] }
