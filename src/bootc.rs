@@ -8,7 +8,6 @@ use tokio::{
     net::unix::pipe::pipe,
     process::Command,
     sync::mpsc,
-    task::JoinHandle,
 };
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -31,35 +30,29 @@ pub async fn get_status() -> Result<Host> {
 
 /// Spawns `bootc ... --progress-fd 3` and returns:
 /// - a stream of parsed JSONL `Event`s read from fd 3
-/// - a JoinHandle for the bootc exit status
+/// - the spawned `bootc` child process handle
 pub fn spawn_bootc_with_progress(
     args: &[&str],
-) -> Result<(
-    ReceiverStream<Result<Event>>,
-    JoinHandle<Result<std::process::ExitStatus>>,
-)> {
+) -> Result<(ReceiverStream<Result<Event>>, tokio::process::Child)> {
     let (tx, rx) = pipe().wrap_err("creating unix pipe for progress-fd")?;
 
     let (event_tx, event_rx) = mpsc::channel::<Result<Event>>(64);
     let args: Vec<String> = args.iter().map(|s| (*s).to_owned()).collect();
 
-    let cmd_handle: JoinHandle<Result<std::process::ExitStatus>> = tokio::spawn(async move {
-        let mut cmd = Command::new("bootc");
-        cmd.args(&args).arg("--progress-fd").arg("3");
+    let mut cmd = Command::new("bootc");
+    cmd.args(&args).arg("--progress-fd").arg("3");
 
-        let owned_fd = tx
-            .into_blocking_fd()
-            .wrap_err("converting progress pipe sender into OwnedFd")?;
+    let owned_fd = tx
+        .into_blocking_fd()
+        .wrap_err("converting progress pipe sender into OwnedFd")?;
 
-        cmd.fd_mappings(vec![FdMapping {
-            parent_fd: owned_fd,
-            child_fd: 3,
-        }])
-        .wrap_err("setting fd mapping for --progress-fd")?;
+    cmd.fd_mappings(vec![FdMapping {
+        parent_fd: owned_fd,
+        child_fd: 3,
+    }])
+    .wrap_err("setting fd mapping for --progress-fd")?;
 
-        let status = cmd.status().await.wrap_err("running bootc")?;
-        Ok(status)
-    });
+    let child = cmd.spawn().wrap_err("spawning bootc")?;
 
     // Parse JSONL events
     tokio::spawn(async move {
@@ -98,12 +91,12 @@ pub fn spawn_bootc_with_progress(
         }
     });
 
-    Ok((ReceiverStream::new(event_rx), cmd_handle))
+    Ok((ReceiverStream::new(event_rx), child))
 }
 
 /// Starts `bootc upgrade` with `--progress-fd 3` and returns:
 /// - A stream of parsed JSONL progress `Event`s.
-/// - A join handle that resolves to the command `ExitStatus`.
+/// - the spawned `bootc` child process handle.
 ///
 /// The returned stream yields `Ok(Event)` for each progress message. If the
 /// progress reader hits an error (I/O or JSON parse), it yields `Err(...)`
@@ -112,7 +105,7 @@ pub fn spawn_bootc_with_progress(
 ///
 /// Example:
 /// ```
-/// let (mut events, cmd_handle) = bootc::upgrade().await?;
+/// let (mut events, mut child) = bootc::upgrade().await?;
 /// while let Some(event) = events.next().await {
 ///     match event? {
 ///         Event::Start { version } => println!("starting {version}"),
@@ -124,16 +117,13 @@ pub fn spawn_bootc_with_progress(
 ///         }
 ///     }
 /// }
-/// let status = cmd_handle.await??;
+/// let status = child.wait().await?;
 /// if !status.success() {
 ///     bail!("bootc upgrade failed with status: {status}");
 /// }
 /// # Ok::<_, color_eyre::Report>(())
 /// ```
-pub async fn upgrade() -> Result<(
-    ReceiverStream<Result<Event>>,
-    JoinHandle<Result<std::process::ExitStatus>>,
-)> {
+pub async fn upgrade() -> Result<(ReceiverStream<Result<Event>>, tokio::process::Child)> {
     spawn_bootc_with_progress(&["upgrade"])
 }
 
@@ -141,10 +131,7 @@ pub async fn upgrade() -> Result<(
 /// The returned stream will yield progress events from the `switch` command.
 pub async fn switch(
     img_ref: &str,
-) -> Result<(
-    ReceiverStream<Result<Event>>,
-    JoinHandle<Result<std::process::ExitStatus>>,
-)> {
+) -> Result<(ReceiverStream<Result<Event>>, tokio::process::Child)> {
     spawn_bootc_with_progress(&["switch", img_ref])
 }
 
