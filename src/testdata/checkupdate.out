@@ -1,0 +1,5 @@
+Update available for: docker://ghcr.io/ultramarine-linux/plasma-bootc:main
+  Digest: sha256:31130f9ca262b346ed322cd4a31e83fe01f935ada9af49abcc11857e72d9a0cd
+Total new layers: 100   Size: 4.7 GB
+Removed layers:   100   Size: 9.2 GB
+Added layers:     100   Size: 4.7 GB

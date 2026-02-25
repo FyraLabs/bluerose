@@ -8,7 +8,7 @@ use tokio_stream::StreamExt;
 use zbus::zvariant::{Optional, OwnedValue, Type, Value};
 use zbus::{connection, interface};
 
-use crate::bootc::get_status;
+use crate::bootc::{get_status, UpdateInfo};
 use crate::types::host::{Host, ImageStatus};
 use crate::types::progress::{DbusEvent, Event};
 
@@ -126,6 +126,12 @@ impl Bluerose {
 
     async fn rollback(&mut self, apply: bool) -> zbus::fdo::Result<()> {
         bootc::rollback(apply)
+            .await
+            .map_err(|e| zbus::fdo::Error::Failed(e.to_string()))
+    }
+    
+    async fn check_update(&mut self) -> zbus::fdo::Result<Option<UpdateInfo>> {
+        bootc::check_update()
             .await
             .map_err(|e| zbus::fdo::Error::Failed(e.to_string()))
     }
