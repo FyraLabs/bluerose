@@ -1,15 +1,14 @@
-use color_eyre::{Result, eyre::bail};
+use color_eyre::Result;
 use serde::{Deserialize, Serialize};
 use std::future::pending;
 use std::sync::Arc;
-use tokio::process::Command;
 use tokio::sync::Mutex;
 use tokio_stream::StreamExt;
 use zbus::zvariant::{Optional, OwnedValue, Type, Value};
 use zbus::{connection, interface};
 
-use crate::bootc::{get_status, UpdateInfo};
-use crate::types::host::{Host, ImageStatus};
+use crate::bootc::{UpdateInfo, get_status};
+use crate::types::host::ImageStatus;
 use crate::types::progress::{DbusEvent, Event};
 
 mod bootc;
@@ -129,7 +128,7 @@ impl Bluerose {
             .await
             .map_err(|e| zbus::fdo::Error::Failed(e.to_string()))
     }
-    
+
     async fn check_update(&mut self) -> zbus::fdo::Result<Option<UpdateInfo>> {
         bootc::check_update()
             .await
